@@ -1,115 +1,107 @@
-from fastapi import FastAPI, HTTPException, status, Path
-from typing import Optional
+from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+
+from typing import List
 from pydantic import BaseModel
 
+app = FastAPI(title="Integration with SQL - Queens Developer")
 
-app = FastAPI()
+# Database setup
+engine = create_engine("sqlite:///usersapi.db", connect_args={"check_same_thread" : False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-users = {
-    1: {
-        "name" : "Queens",
-        "email" : "queens@example.com",
-        "age" : "65",
-        "webiste" : "queensdev.com",
-        "role" : "Developer",
-        "photo" : "url"
-    },
-    2: {
-        "name" : "Nafsan",
-        "email" : "nafsan@example.com",
-        "age" : "25",
-        "webiste" : "nafsan.com",
-        "role" : "Admin",
-        "photo" : "url"
-    },
-    3: {
-        "name" : "Kings",
-        "email" : "kings@example.com",
-        "age" : "24",
-        "webiste" : "kingsconsumers.com",
-        "role" : "Subscriber",
-        "photo" : "url"
-    }
-}
+# Database Model
+class User(Base):
+    __tablename__ ="users"
 
-#Base pydantic models
-class User(BaseModel):
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    email = Column(String(100), nullable=False, unique=True)
+    role = Column(String(100), nullable=False)
+
+Base.metadata.create_all(engine)
+
+#Pydantic Model (Dataclass)
+class UserCreate(BaseModel):
     name:str
     email:str
-    website:str
-    age:int
     role:str
-    photo:str
 
+class UserResponse(BaseModel):
+    id:int
+    name:str
+    email:str
+    role:str
 
-class UpdateUser(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    website: Optional[str] = None
-    age: Optional[int] = None
-    role: Optional[str] = None
-    photo: Optional[str] = None
+    class config:
+        from_attributes = True
 
-# endpoint (url)
-@app.get('/')
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+get_db()
+
+# Endpoint - Root
+@app.get("/")
 def root():
-    return {"message" : "Welcome to FastAPI"}
+    return {"message" : "Welcome to FastAPI with SQL"}
 
-# get users
-# example.com/user/1
-@app.get("/user/{user_id}")
-def get_user(user_id:int = Path(..., description="The Id you want", gt=0, lt=100)):
-    if user_id not in users:
-        raise HTTPException(status_code=404, detail="User not found")
-    return users[user_id]
-
-# create user
-# example.com/user/1
-@app.post("/user/{user_id}", status_code=status.HTTP_201_CREATED)
-def create_user(user_id:int, user:User):
-    if user_id in users:
-        raise HTTPException(status_code=400, detail="User already exists")
-    users[user_id] = user.model_dump()
+# Get user
+@app.get("/user/{user_id}", response_model=UserResponse)
+def get_user(user_id:int, db:Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found!")
     return user
 
-# update user
-# example.com/user/1
-@app.put("/user/{user_id}")
-def update_user(user_id:int, user:UpdateUser):
-    if user_id not in users:
-        raise HTTPException(status_code=404, detail="User not found")
-    current_user = users[user_id]
-    if user.name is not None:
-        current_user["name"] = user.name
-    if user.email is not None:
-        current_user["email"] = user.email
-    if user.website is not None:
-        current_user["website"] = user.website
-    if user.age is not None:
-        current_user["age"] = user.age
-    if user.role is not None:
-        current_user["role"] = user.role
-    if user.photo is not None:
-        current_user["photo"] = user.photo
-    return current_user
+# Create user
+@app.post("/user/", response_model=UserResponse)
+def create_user(user: UserCreate, db:Session = Depends(get_db)):
+    if db.query(User).filter(User.email == user.email).first():
+        raise HTTPException(status_code=404, detail="User already exists!")
+    
+    new_user =User(**user.model_dump())
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
 
-# delete user
-# example.com/user/41
+    return new_user
+
+# Update user
+@app.put("/user/{user_id}", response_model=UserResponse)
+def update_user(user_id:int, user:UserCreate, db:Session=Depends(get_db)):
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found!")
+    
+    for field, value in user.model_dump().items():
+        setattr(db_user, field, value)
+    
+    db.commit()
+    db.refresh(db_user)
+
+    return db_user
+
+# Delete user
 @app.delete("/user/{user_id}")
-def delete_user(user_id:int):
-    if user_id not in users:
-        raise HTTPException(status_code=404, detail="User not found")
-    deleted_user = users.pop(user_id)
-    return {"message" : "User deleted successfully", "deleted_user" : deleted_user}
+def delete_user(user_id:int, db:Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found!")
+    
+    db.delete(db_user)
+    db.commit()
 
-# search user
-# example.com/user/search?queens
-@app.get("/user/search/")
-def search_user_by_name(name : Optional[str] = None):
-    if not name:
-        return {"message" : "Name is required"}
-    for user in users.values():
-        if user["name"].lower() == name.lower():
-            return user
-                
-    raise HTTPException(status_code=404, detail="User not found")
+    return {"message" : "User deleted!"}
+
+# Get all users
+@app.get("/users/", response_model=List[UserResponse])
+def get_all_users(db:Session = Depends(get_db)):
+    return db.query(User).all()
