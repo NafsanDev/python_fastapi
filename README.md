@@ -22,7 +22,11 @@ To run the project:
     pip install -r requirements.txt
 
 3. Run the app <br>
-    uvicorn myapi:app --reload
+    uvicorn myapi:app --reload   # Secure version <br>
+    or <br>
+    uvicorn sqlapi:app --reload  # SQL version <br>
+    or <br>
+    uvicorn hardcodedapi:app --reload  # Hardcoded JSON version<br>
 
 4. API TEST <br>
    Goto http://127.0.0.1:8000/docs
