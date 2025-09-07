@@ -114,3 +114,4 @@ def search_user_by_name(name : Optional[str] = None):
             return user
                 
     raise HTTPException(status_code=404, detail="User not found")
+
