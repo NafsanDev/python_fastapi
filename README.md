@@ -1,4 +1,4 @@
-🔐 Secure FastAPI Project
+🔐 Secure FastAPI Project - Python
 
 A secure, production-ready **FastAPI** backend built with:
 
@@ -24,6 +24,6 @@ To run the project:
 3. Run the app
     uvicorn myapi:app --reload
 
-4. API TEST on
+4. API TEST <br>
    Goto http://127.0.0.1:8000/docs
 
