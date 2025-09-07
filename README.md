@@ -13,15 +13,15 @@ This project is designed as a starting point for building APIs with **secure use
 ---
 
 To run the project:
-1. Create a virtual environment
-    python -m venv venv
-    source venv/bin/activate   # Linux / macOS
+1. Create a virtual environment <br>
+    python -m venv venv <br>
+    source venv/bin/activate   # Linux / macOS <br>
     venv\Scripts\activate      # Windows
 
-2. Install dependencies
+2. Install dependencies <br>
     pip install -r requirements.txt
 
-3. Run the app
+3. Run the app <br>
     uvicorn myapi:app --reload
 
 4. API TEST <br>
